@@ -142,9 +142,137 @@ def max_tree(image, connectivity=1):
 
     return parent, tree_traverser
 
+def attribute_opening(image, attribute, threshold, connectivity,
+        parent, tree_traverser):
+    """Perform an area opening of the image.
+
+    Area opening removes all bright structures of an image with
+    a surface smaller than area_threshold.
+    The output image is thus the largest image smaller than the input
+    for which all local maxima have at least a surface of
+    area_threshold pixels.
+
+    Area openings are similar to morphological openings, but
+    they do not use a fixed structuring element, but rather a deformable
+    one, with surface = area_threshold. Consequently, the area_opening
+    with area_threshold=1 is the identity.
+
+    In the binary case, area openings are equivalent to
+    remove_small_objects; this operator is thus extended to gray-level images.
+
+    Technically, this operator is based on the max-tree representation of
+    the image.
+
+    Parameters
+    ----------
+    image: ndarray
+        The input image for which the area_opening is to be calculated.
+        This image can be of any type.
+    attribute: ndarray
+        The attribute calculated for the max-tree given by the parent
+        and tree_traverser arrays. Must be increasing, i.e. attribute of
+        parent node is always greater than attribute of child.
+    area_threshold: unsigned int
+        The size parameter (number of pixels). The default value is arbitrarily
+        chosen to be 64.
+    connectivity: unsigned int, optional
+        The neighborhood connectivity. The integer represents the maximum
+        number of orthogonal steps to reach a neighbor. In 2D, it is 1 for
+        a 4-neighborhood and 2 for a 8-neighborhood.
+    parent: ndarray, int64
+        Parent image representing the max tree of the image. The
+        value of each pixel is the index of its parent in the ravelled array.
+    tree_traverser: 1D array, int64
+        The ordered pixel indices (referring to the ravelled array). The pixels
+        are ordered such that every pixel is preceded by its parent (except for
+        the root which has no parent).
+
+    Returns
+    -------
+    output: ndarray
+        Output image of the same shape and type as the input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
+
+    See also
+    --------
+    skimage.morphology.area_opening
+    skimage.morphology.area_closing
+    skimage.morphology.diameter_opening
+    skimage.morphology.diameter_closing
+    skimage.morphology.intensity_opening
+    skimage.morphology.max_tree
+    skimage.morphology.remove_small_objects
+    skimage.morphology.remove_small_holes
+
+
+    References
+    ----------
+    .. [1] Vincent L., Proc. "Grayscale area openings and closings,
+           their efficient implementation and applications",
+           EURASIP Workshop on Mathematical Morphology and its
+           Applications to Signal Processing, Barcelona, Spain, pp.22-27,
+           May 1993.
+    .. [2] Soille, P., "Morphological Image Analysis: Principles and
+           Applications" (Chapter 6), 2nd edition (2003), ISBN 3540429883.
+           DOI:10.1007/978-3-662-05088-0
+    .. [3] Salembier, P., Oliveras, A., & Garrido, L. (1998). Antiextensive
+           Connected Operators for Image and Sequence Processing.
+           IEEE Transactions on Image Processing, 7(4), 555-570.
+           DOI:10.1109/83.663500
+    .. [4] Najman, L., & Couprie, M. (2006). Building the component tree in
+           quasi-linear time. IEEE Transactions on Image Processing, 15(11),
+           3531-3539.
+           DOI:10.1109/TIP.2006.877518
+    .. [5] Carlinet, E., & Geraud, T. (2014). A Comparative Review of
+           Component Tree Computation Algorithms. IEEE Transactions on Image
+           Processing, 23(9), 3885-3895.
+           DOI:10.1109/TIP.2014.2336551
+
+    Examples
+    --------
+
+    We create an image (quadratic function with a maximum in the center and
+    4 additional local maxima.
+
+    >>> w = 12
+    >>> x, y = np.mgrid[0:w,0:w]
+    >>> f = 20 - 0.2*((x - w/2)**2 + (y-w/2)**2)
+    >>> f[2:3,1:5] = 40; f[2:4,9:11] = 60; f[9:11,2:4] = 80
+    >>> f[9:10,9:11] = 100; f[10,10] = 100
+    >>> f = f.astype(np.int)
+
+    We can calculate the area opening:
+
+    >>> P, S = max_tree(f)
+    >>> open = opening(f, 8, connectivity=1, parent = P, tree_traverser = S)
+
+    The peaks with a surface smaller than 8 are removed.
+    """
+    output = image.copy()
+
+    if parent is None or tree_traverser is None:
+        parent_new, tree_traverser = max_tree(image, connectivity)
+    else:
+        parent_new = parent.copy()
+
+    #area = _max_tree._compute_area(image.ravel(),
+    #                               parent_new.ravel(), tree_traverser)
+
+    _max_tree._direct_filter(image.ravel(), output.ravel(), parent_new.ravel(),
+                             tree_traverser, attribute, threshold)
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
 
 def area_opening(image, area_threshold=64, connectivity=1,
-                 parent=None, tree_traverser=None):
+        parent=None, tree_traverser=None):
     """Perform an area opening of the image.
 
     Area opening removes all bright structures of an image with
@@ -189,11 +317,18 @@ def area_opening(image, area_threshold=64, connectivity=1,
     output: ndarray
         Output image of the same shape and type as the input image.
 
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
+
     See also
     --------
     skimage.morphology.area_closing
     skimage.morphology.diameter_opening
     skimage.morphology.diameter_closing
+    skimage.morphology.intensity_opening
     skimage.morphology.max_tree
     skimage.morphology.remove_small_objects
     skimage.morphology.remove_small_holes
@@ -244,18 +379,24 @@ def area_opening(image, area_threshold=64, connectivity=1,
     output = image.copy()
 
     if parent is None or tree_traverser is None:
-        parent, tree_traverser = max_tree(image, connectivity)
+        parent_new, tree_traverser = max_tree(image, connectivity)
+    else:
+        parent_new = parent.copy()
 
     area = _max_tree._compute_area(image.ravel(),
-                                   parent.ravel(), tree_traverser)
+                                   parent_new.ravel(), tree_traverser)
 
-    _max_tree._direct_filter(image.ravel(), output.ravel(), parent.ravel(),
+    _max_tree._direct_filter(image.ravel(), output.ravel(), parent_new.ravel(),
                              tree_traverser, area, area_threshold)
-    return output
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
 
 
 def diameter_opening(image, diameter_threshold=8, connectivity=1,
-                     parent=None, tree_traverser=None):
+        parent=None, tree_traverser=None):
     """Perform a diameter opening of the image.
 
     Diameter opening removes all bright structures of an image with
@@ -271,7 +412,7 @@ def diameter_opening(image, diameter_threshold=8, connectivity=1,
     Parameters
     ----------
     image: ndarray
-        The input image for which the area_opening is to be calculated.
+        The input image for which the diameter_opening is to be calculated.
         This image can be of any type.
     diameter_threshold: unsigned int
         The maximal extension parameter (number of pixels). The default value
@@ -292,6 +433,12 @@ def diameter_opening(image, diameter_threshold=8, connectivity=1,
     -------
     output: ndarray
         Output image of the same shape and type as the input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
 
     See also
     --------
@@ -335,19 +482,129 @@ def diameter_opening(image, diameter_threshold=8, connectivity=1,
     output = image.copy()
 
     if parent is None or tree_traverser is None:
-        parent, tree_traverser = max_tree(image, connectivity)
+        parent_new, tree_traverser = max_tree(image, connectivity)
+    else:
+        parent_new = parent.copy()
 
     diam = _max_tree._compute_extension(image.ravel(),
                                         np.array(image.shape, dtype=np.int32),
-                                        parent.ravel(), tree_traverser)
+                                        parent_new.ravel(), tree_traverser)
 
-    _max_tree._direct_filter(image.ravel(), output.ravel(), parent.ravel(),
+    _max_tree._direct_filter(image.ravel(), output.ravel(), parent_new.ravel(),
                              tree_traverser, diam, diameter_threshold)
-    return output
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
+
+def intensity_opening(image, intensity_threshold=8, connectivity=1,
+        parent=None, tree_traverser=None):
+    """Perform an intensity range opening of the image.
+
+    Diameter opening removes all bright structures of an image with
+    intensity range smaller than intensity_threshold. The intensity
+    range is defined as the difference between the highest and lowest
+    intensity pixel of a component.
+    In practice, this attribute corresponds to a texture attribute
+    and will remove structures with uniform intensity values.
+
+    Technically, this operator is based on the max-tree representation of
+    the image.
+
+    Parameters
+    ----------
+    image: ndarray
+        The input image for which the area_opening is to be calculated.
+        This image can be of any type.
+    diameter_threshold: unsigned int
+        The maximal extension parameter (number of pixels). The default value
+        is 8.
+    connectivity: unsigned int, optional
+        The neighborhood connectivity. The integer represents the maximum
+        number of orthogonal steps to reach a neighbor. In 2D, it is 1 for
+        a 4-neighborhood and 2 for a 8-neighborhood. Default value is 1.
+    parent: ndarray, int64, optional
+        Parent image representing the max tree of the image. The
+        value of each pixel is the index of its parent in the ravelled array.
+    tree_traverser: 1D array, int64, optional
+        The ordered pixel indices (referring to the ravelled array). The pixels
+        are ordered such that every pixel is preceded by its parent (except for
+        the root which has no parent).
+
+    Returns
+    -------
+    output: ndarray
+        Output image of the same shape and type as the input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
+
+    See also
+    --------
+    skimage.morphology.area_opening
+    skimage.morphology.area_closing
+    skimage.morphology.diameter_opening
+    skimage.morphology.diameter_closing
+    skimage.morphology.intensity_closing
+    skimage.morphology.max_tree
+
+    References
+    ----------
+    .. [1] Walter, T., & Klein, J.-C. (2002). Automatic Detection of
+           Microaneurysms in Color Fundus Images of the Human Retina by Means
+           of the Bounding Box Closing. In A. Colosimo, P. Sirabella,
+           A. Giuliani (Eds.), Medical Data Analysis. Lecture Notes in Computer
+           Science, vol 2526, pp. 210-220. Springer Berlin Heidelberg.
+           :DOI:`10.1007/3-540-36104-9_23`
+    .. [2] Carlinet, E., & Geraud, T. (2014). A Comparative Review of
+           Component Tree Computation Algorithms. IEEE Transactions on Image
+           Processing, 23(9), 3885-3895.
+           :DOI:`10.1109/TIP.2014.2336551`
+
+    Examples
+    --------
+    We create an image (quadratic function with a maximum in the center and
+    4 additional local maxima.
+
+    >>> w = 12
+    >>> x, y = np.mgrid[0:w,0:w]
+    >>> f = 20 - 0.2*((x - w/2)**2 + (y-w/2)**2)
+    >>> f[2:3,1:5] = 40; f[2:4,9:11] = 60; f[9:11,2:4] = 80
+    >>> f[9:10,9:11] = 100; f[10,10] = 100
+    >>> f = f.astype(np.int)
+
+    We can calculate the diameter opening:
+
+    >>> open = intensity_opening(f, 3, connectivity=1)
+
+    The peaks with a maximal extension of 2 or less are removed.
+    The remaining peaks have all a maximal extension of at least 3.
+    """
+    output = image.copy()
+
+    if parent is None or tree_traverser is None:
+        parent_new, tree_traverser = max_tree(image, connectivity)
+    else:
+        parent_new = parent.copy()
+
+    irange = _max_tree._compute_intensity_range(image.ravel(),
+                                                parent_new.ravel(), tree_traverser)
+
+    _max_tree._direct_filter(image.ravel(), output.ravel(), parent_new.ravel(),
+                             tree_traverser, irange, intensity_threshold)
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
 
 
 def area_closing(image, area_threshold=64, connectivity=1,
-                 parent=None, tree_traverser=None):
+        parent=None, tree_traverser=None):
     """Perform an area closing of the image.
 
     Area closing removes all dark structures of an image with
@@ -391,6 +648,12 @@ def area_closing(image, area_threshold=64, connectivity=1,
     -------
     output: ndarray
         Output image of the same shape and type as input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
 
     See also
     --------
@@ -458,22 +721,27 @@ def area_closing(image, area_threshold=64, connectivity=1,
     output = image_inv.copy()
 
     if parent is None or tree_traverser is None:
-        parent, tree_traverser = max_tree(image_inv, connectivity)
+        parent_new, tree_traverser = max_tree(image_inv, connectivity)
+    else:
+        parent_new = parent.copy()
 
     area = _max_tree._compute_area(image_inv.ravel(),
-                                   parent.ravel(), tree_traverser)
+                                   parent_new.ravel(), tree_traverser)
 
-    _max_tree._direct_filter(image_inv.ravel(), output.ravel(), parent.ravel(),
+    _max_tree._direct_filter(image_inv.ravel(), output.ravel(), parent_new.ravel(),
                              tree_traverser, area, area_threshold)
 
     # inversion of the output image
     output = invert(output)
 
-    return output
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
 
 
 def diameter_closing(image, diameter_threshold=8, connectivity=1,
-                     parent=None, tree_traverser=None):
+        parent=None, tree_traverser=None):
     """Perform a diameter closing of the image.
 
     Diameter closing removes all dark structures of an image with
@@ -512,6 +780,12 @@ def diameter_closing(image, diameter_threshold=8, connectivity=1,
     -------
     output: ndarray
         Output image of the same shape and type as input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
 
     See also
     --------
@@ -566,21 +840,132 @@ def diameter_closing(image, diameter_threshold=8, connectivity=1,
     output = image_inv.copy()
 
     if parent is None or tree_traverser is None:
-        parent, tree_traverser = max_tree(image_inv, connectivity)
+        parent_new, tree_traverser = max_tree(image_inv, connectivity)
+    else:
+        parent_new = parent.copy()
 
     diam = _max_tree._compute_extension(image_inv.ravel(),
                                         np.array(image_inv.shape,
                                                  dtype=np.int32),
-                                        parent.ravel(), tree_traverser)
+                                        parent_new.ravel(), tree_traverser)
 
-    _max_tree._direct_filter(image_inv.ravel(), output.ravel(), parent.ravel(),
+    _max_tree._direct_filter(image_inv.ravel(), output.ravel(), parent_new.ravel(),
                              tree_traverser, diam, diameter_threshold)
     output = invert(output)
-    return output
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
+
+def intensity_closing(image, intensity_threshold=8, connectivity=1,
+        parent=None, tree_traverser=None):
+    """Perform a diameter closing of the image.
+
+    Diameter closing removes all dark structures of an image with
+    maximal extension smaller than diameter_threshold. The maximal
+    extension is defined as the maximal extension of the bounding box.
+    The operator is also called Bounding Box Closing. In practice,
+    the result is similar to a morphological closing, but long and thin
+    structures are not removed.
+
+    Technically, this operator is based on the max-tree representation of
+    the image.
+
+    Parameters
+    ----------
+    image: ndarray
+        The input image for which the intensity_closing is to be calculated.
+        This image can be of any type.
+    intensity_threshold: unsigned int
+        The maximal extension parameter (number of pixels). The default value
+        is 8.
+    connectivity: unsigned int, optional
+        The neighborhood connectivity. The integer represents the maximum
+        number of orthogonal steps to reach a neighbor. In 2D, it is 1 for
+        a 4-neighborhood and 2 for a 8-neighborhood. Default value is 1.
+    parent: ndarray, int64, optional
+        Precomputed parent image representing the max tree of the inverted
+        image. This function is fast, if precomputed parent and tree_traverser
+        are provided. See Note for further details.
+    tree_traverser: 1D array, int64, optional
+        Precomputed traverser, where the pixels are ordered such that every
+        pixel is preceded by its parent (except for the root which has no
+        parent). This function is fast, if precomputed parent and
+        tree_traverser are provided. See Note for further details.
+
+    Returns
+    -------
+    output: ndarray
+        Output image of the same shape and type as input image.
+
+    OR
+
+    output: (ndarray, ndarray)
+	Output image the same shape and type as the input image and a
+        parent image representing the max tree of the opened image.
+
+    See also
+    --------
+    skimage.morphology.area_opening
+    skimage.morphology.area_closing
+    skimage.morphology.diameter_opening
+    skimage.morphology.diameter_closing
+    skimage.morphology.intensity_opening
+    skimage.morphology.max_tree
+
+
+    Examples
+    --------
+    We create an image (quadratic function with a minimum in the center and
+    4 additional local minima.
+
+    >>> w = 12
+    >>> x, y = np.mgrid[0:w,0:w]
+    >>> f = 180 + 0.2*((x - w/2)**2 + (y-w/2)**2)
+    >>> f[2:3,1:5] = 160; f[2:4,9:11] = 140; f[9:11,2:4] = 120
+    >>> f[9:10,9:11] = 100; f[10,10] = 100
+    >>> f = f.astype(np.int)
+
+    We can calculate the diameter closing:
+
+    >>> closed = intensity_closing(f, 3, connectivity=1)
+
+    All small minima with intensity range of 2 or less are removed.
+
+
+    Notes
+    -----
+    If a max-tree representation (parent and tree_traverser) are given to the
+    function, they must be calculated from the inverted image for this
+    function, i.e.:
+    >>> P, S = max_tree(invert(f))
+    >>> closed = diameter_closing(f, 3, parent=P, tree_traverser=S)
+    """
+    # inversion of the input image
+    image_inv = invert(image)
+    output = image_inv.copy()
+
+    if parent is None or tree_traverser is None:
+        parent_new, tree_traverser = max_tree(image_inv, connectivity)
+    else:
+        parent_new = parent.copy()
+
+    irange = _max_tree._compute_intensity_range(image_inv.ravel(),
+                                                parent_new.ravel(), tree_traverser)
+
+    _max_tree._direct_filter(image_inv.ravel(), output.ravel(), parent_new.ravel(),
+                             tree_traverser, irange, intensity_threshold)
+    output = invert(output)
+
+    if parent is None or tree_traverser is None:
+        return output
+    else:
+        return output, parent_new
 
 
 def max_tree_local_maxima(image, connectivity=1,
-                          parent=None, tree_traverser=None):
+        parent=None, tree_traverser=None):
     """Determine all local maxima of the image.
 
     The local maxima are defined as connected sets of pixels with equal

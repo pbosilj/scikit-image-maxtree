@@ -4,3 +4,4 @@ unzip build.zip
 mv scikit-image-maxtree-build/* .
 rm -r scikit-image-maxtree-build
 rm build.zip
+rm install.sh

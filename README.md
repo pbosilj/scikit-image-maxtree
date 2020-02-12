@@ -27,5 +27,5 @@ Install dependancies:
 
 ```bash
 pip install scikit_image-0.17.dev0-cp37-cp37m-linux_x86_64.whl
-pip install jupyter-lab
+pip install jupyterlab
 ```

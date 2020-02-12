@@ -14,6 +14,8 @@ from .extrema import h_minima, h_maxima, local_maxima, local_minima
 from ._flood_fill import flood, flood_fill
 from .max_tree import (max_tree, area_opening, area_closing,
                        diameter_opening, diameter_closing,
+                       intensity_opening, intensity_closing,
+                       attribute_opening,
                        max_tree_local_maxima)
 
 __all__ = ['binary_erosion',
@@ -57,4 +59,7 @@ __all__ = ['binary_erosion',
            'area_closing',
            'diameter_opening',
            'diameter_closing',
+           'intensity_opening',
+           'intensity_closing',
+           'attribute_opening',
            'max_tree_local_maxima']

@@ -15,12 +15,19 @@ sudo add-apt-repository ppa:deadsnakes/ppa
 sudo apt update
 sudo apt install python3.7
 ```
-
+(A) If pip installed
 Create virtual environment:
 
 ```bash
 python3.7 -m venv max_tree_venv --clear
 source max_tree_venv/bin/activate
+```
+
+(B) If pip missing - LAB COMPUTERS:
+```bash
+python3.7 -m venv max_tree_venv --clear --without-pip
+source max_tree_venv/bin/activate
+wget bootstrap.pypa.io/get-pip.py -O - | python
 ```
 
 Install dependancies:

@@ -29,7 +29,6 @@ Install pip:
 wget bootstrap.pypa.io/get-pip.py -O - | python
 ```
 
-
 Install dependancies:
 
 ```bash
